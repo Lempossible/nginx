@@ -130,15 +130,55 @@ ngx_http_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     ngx_http_core_loc_conf_t    *clcf;
     ngx_http_core_srv_conf_t   **cscfp;
     ngx_http_core_main_conf_t   *cmcf;
+    ngx_pool_t                  *saved_pool;
+    ngx_pool_t                  *gp;
+    ngx_pool_cleanup_t          *cln;
+    ngx_dyn_gen_t               *gen;
 
     if (*(ngx_http_conf_ctx_t **) conf) {
         return "is duplicate";
     }
 
+    saved_pool = cf->pool;
+
+    if (ngx_dyn_build_mode) {
+        gp = ngx_dyn_build_pool;
+
+    } else {
+        gp = ngx_dyn_gp_create(cf->log, NGX_CYCLE_POOL_SIZE);
+        if (gp == NULL) {
+            return NGX_CONF_ERROR;
+        }
+
+        gen = ngx_dyn_gen_create(gp, NULL, 0, NULL);
+        if (gen == NULL) {
+            ngx_dyn_gp_destroy(gp, 0);
+            return NGX_CONF_ERROR;
+        }
+
+        cln = ngx_pool_cleanup_add(cf->cycle->pool, sizeof(ngx_dyn_gen_t *));
+        if (cln == NULL) {
+            ngx_dyn_gp_destroy(gp, 0);
+            return NGX_CONF_ERROR;
+        }
+
+        cln->data = &cf->cycle->dyn_gen;
+        cln->handler = ngx_dyn_cycle_cleanup;
+
+        cf->cycle->dyn_gen = gen;
+    }
+
+    if (gp == NULL) {
+        return NGX_CONF_ERROR;
+    }
+
+    cf->pool = gp;
+
     /* the main http context */
 
     ctx = ngx_pcalloc(cf->pool, sizeof(ngx_http_conf_ctx_t));
     if (ctx == NULL) {
+        cf->pool = saved_pool;
         return NGX_CONF_ERROR;
     }
 
@@ -155,6 +195,7 @@ ngx_http_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     ctx->main_conf = ngx_pcalloc(cf->pool,
                                  sizeof(void *) * ngx_http_max_module);
     if (ctx->main_conf == NULL) {
+        cf->pool = saved_pool;
         return NGX_CONF_ERROR;
     }
 
@@ -166,6 +207,7 @@ ngx_http_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
     ctx->srv_conf = ngx_pcalloc(cf->pool, sizeof(void *) * ngx_http_max_module);
     if (ctx->srv_conf == NULL) {
+        cf->pool = saved_pool;
         return NGX_CONF_ERROR;
     }
 
@@ -177,6 +219,7 @@ ngx_http_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
     ctx->loc_conf = ngx_pcalloc(cf->pool, sizeof(void *) * ngx_http_max_module);
     if (ctx->loc_conf == NULL) {
+        cf->pool = saved_pool;
         return NGX_CONF_ERROR;
     }
 
@@ -197,6 +240,7 @@ ngx_http_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         if (module->create_main_conf) {
             ctx->main_conf[mi] = module->create_main_conf(cf);
             if (ctx->main_conf[mi] == NULL) {
+                cf->pool = saved_pool;
                 return NGX_CONF_ERROR;
             }
         }
@@ -204,6 +248,7 @@ ngx_http_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         if (module->create_srv_conf) {
             ctx->srv_conf[mi] = module->create_srv_conf(cf);
             if (ctx->srv_conf[mi] == NULL) {
+                cf->pool = saved_pool;
                 return NGX_CONF_ERROR;
             }
         }
@@ -211,6 +256,7 @@ ngx_http_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         if (module->create_loc_conf) {
             ctx->loc_conf[mi] = module->create_loc_conf(cf);
             if (ctx->loc_conf[mi] == NULL) {
+                cf->pool = saved_pool;
                 return NGX_CONF_ERROR;
             }
         }
@@ -228,6 +274,7 @@ ngx_http_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
         if (module->preconfiguration) {
             if (module->preconfiguration(cf) != NGX_OK) {
+                cf->pool = saved_pool;
                 return NGX_CONF_ERROR;
             }
         }
@@ -282,20 +329,24 @@ ngx_http_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         clcf = cscfp[s]->ctx->loc_conf[ngx_http_core_module.ctx_index];
 
         if (ngx_http_init_locations(cf, cscfp[s], clcf) != NGX_OK) {
+            cf->pool = saved_pool;
             return NGX_CONF_ERROR;
         }
 
         if (ngx_http_init_static_location_trees(cf, clcf) != NGX_OK) {
+            cf->pool = saved_pool;
             return NGX_CONF_ERROR;
         }
     }
 
 
     if (ngx_http_init_phases(cf, cmcf) != NGX_OK) {
+        cf->pool = saved_pool;
         return NGX_CONF_ERROR;
     }
 
     if (ngx_http_init_headers_in_hash(cf, cmcf) != NGX_OK) {
+        cf->pool = saved_pool;
         return NGX_CONF_ERROR;
     }
 
@@ -309,12 +360,14 @@ ngx_http_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
         if (module->postconfiguration) {
             if (module->postconfiguration(cf) != NGX_OK) {
+                cf->pool = saved_pool;
                 return NGX_CONF_ERROR;
             }
         }
     }
 
     if (ngx_http_variables_init_vars(cf) != NGX_OK) {
+        cf->pool = saved_pool;
         return NGX_CONF_ERROR;
     }
 
@@ -327,6 +380,7 @@ ngx_http_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
 
     if (ngx_http_init_phase_handlers(cf, cmcf) != NGX_OK) {
+        cf->pool = saved_pool;
         return NGX_CONF_ERROR;
     }
 
@@ -334,14 +388,23 @@ ngx_http_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     /* optimize the lists of ports, addresses and server names */
 
     if (ngx_http_optimize_servers(cf, cmcf, cmcf->ports) != NGX_OK) {
+        cf->pool = saved_pool;
         return NGX_CONF_ERROR;
     }
+
+    if (!ngx_dyn_build_mode) {
+        cf->cycle->dyn_gen->ctx = ctx;
+    }
+
+    cf->pool = saved_pool;
 
     return NGX_CONF_OK;
 
 failed:
 
     *cf = pcf;
+
+    cf->pool = saved_pool;
 
     return rv;
 }

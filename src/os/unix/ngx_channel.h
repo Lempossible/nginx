@@ -19,6 +19,7 @@ typedef struct {
     ngx_pid_t   pid;
     ngx_int_t   slot;
     ngx_fd_t    fd;
+    ngx_uint_t  arg;
 } ngx_channel_t;
 
 

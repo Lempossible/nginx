@@ -218,6 +218,7 @@ ngx_http_init_connection(ngx_connection_t *c)
     ngx_http_log_ctx_t        *ctx;
     ngx_http_connection_t     *hc;
     ngx_http_core_srv_conf_t  *cscf;
+    ngx_pool_cleanup_t        *cln;
 #if (NGX_HAVE_INET6)
     struct sockaddr_in6       *sin6;
     ngx_http_in6_addr_t       *addr6;
@@ -307,6 +308,17 @@ ngx_http_init_connection(ngx_connection_t *c)
 
     /* the default server configuration for the address:port */
     hc->conf_ctx = hc->addr_conf->default_server->ctx;
+
+    cln = ngx_pool_cleanup_add(c->pool, sizeof(ngx_dyn_gen_t *));
+    if (cln == NULL) {
+        ngx_http_close_connection(c);
+        return;
+    }
+
+    hc->gen = ngx_dyn_gen_ref(ngx_cycle->dyn_gen);
+
+    cln->handler = ngx_dyn_gen_cleanup;
+    *(ngx_dyn_gen_t **) cln->data = hc->gen;
 
     ctx = ngx_palloc(c->pool, sizeof(ngx_http_log_ctx_t));
     if (ctx == NULL) {
@@ -3369,6 +3381,12 @@ ngx_http_set_keepalive(ngx_http_request_t *r)
     c->log->action = "closing request";
 
     hc = r->http_connection;
+
+    if (hc->gen != ngx_cycle->dyn_gen) {
+        ngx_http_close_request(r, 0);
+        return;
+    }
+
     b = r->header_in;
 
     if (b->pos < b->last) {

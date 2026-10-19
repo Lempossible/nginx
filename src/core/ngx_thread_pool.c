@@ -639,3 +639,46 @@ ngx_thread_pool_exit_worker(ngx_cycle_t *cycle)
         ngx_thread_pool_destroy(tpp[i]);
     }
 }
+
+
+ngx_int_t
+ngx_thread_pool_equal(ngx_cycle_t *a, ngx_cycle_t *b)
+{
+    ngx_uint_t                i;
+    ngx_thread_pool_t       **ap, **bp;
+    ngx_thread_pool_conf_t   *atcf, *btcf;
+
+    atcf = (ngx_thread_pool_conf_t *) ngx_get_conf(a->conf_ctx,
+                                                   ngx_thread_pool_module);
+    btcf = (ngx_thread_pool_conf_t *) ngx_get_conf(b->conf_ctx,
+                                                   ngx_thread_pool_module);
+
+    if (atcf == NULL || btcf == NULL) {
+        return 0;
+    }
+
+    if (atcf->pools.nelts != btcf->pools.nelts) {
+        return 0;
+    }
+
+    ap = atcf->pools.elts;
+    bp = btcf->pools.elts;
+
+    for (i = 0; i < atcf->pools.nelts; i++) {
+        if (ap[i]->threads != bp[i]->threads) {
+            return 0;
+        }
+
+        if (ap[i]->name.len != bp[i]->name.len) {
+            return 0;
+        }
+
+        if (ngx_strncmp(ap[i]->name.data, bp[i]->name.data, ap[i]->name.len)
+            != 0)
+        {
+            return 0;
+        }
+    }
+
+    return 1;
+}

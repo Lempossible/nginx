@@ -43,6 +43,7 @@ typedef struct ngx_pool_large_s  ngx_pool_large_t;
 struct ngx_pool_large_s {
     ngx_pool_large_t     *next;
     void                 *alloc;
+    size_t                size;
 };
 
 

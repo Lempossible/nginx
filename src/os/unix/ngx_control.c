@@ -48,6 +48,13 @@ typedef struct {
 } ngx_control_process_t;
 
 
+typedef struct {
+    ngx_uint_t    generation;
+    ngx_str_t     digest;
+    ngx_uint_t    pending;
+} ngx_dyn_status_t;
+
+
 static ngx_int_t ngx_control_inherit(void);
 static void ngx_control_close(ngx_control_request_t *r);
 static void ngx_control_handle_accept(void);
@@ -64,6 +71,8 @@ static ngx_int_t ngx_control_show_processes(ngx_control_request_t *r);
 static ngx_int_t ngx_control_show_version(ngx_control_request_t *r);
 static ngx_int_t ngx_control_reload_config(ngx_control_request_t *r);
 static ngx_int_t ngx_control_print_config(ngx_control_request_t *r);
+static ngx_int_t ngx_control_dynamic_status(ngx_control_request_t *r);
+static ngx_int_t ngx_control_dynamic_reload(ngx_control_request_t *r);
 static void ngx_control_log_capture(ngx_log_t *log, ngx_uint_t l,
     u_char *buf, size_t len);
 
@@ -127,6 +136,23 @@ static ngx_data_decl_t  ngx_control_config_fields[] = {
     { ngx_string("content"),
       ngx_data_struct_str_handler,
       offsetof(ngx_keyval_t, value) },
+
+      ngx_data_null_decl
+};
+
+static ngx_data_decl_t  ngx_control_dyn_fields[] = {
+
+    { ngx_string("generation"),
+      ngx_data_struct_int_handler,
+      offsetof(ngx_dyn_status_t, generation) },
+
+    { ngx_string("digest"),
+      ngx_data_struct_str_handler,
+      offsetof(ngx_dyn_status_t, digest) },
+
+    { ngx_string("pending"),
+      ngx_data_struct_int_handler,
+      offsetof(ngx_dyn_status_t, pending) },
 
       ngx_data_null_decl
 };
@@ -602,7 +628,8 @@ ngx_control_content(ngx_control_request_t *r)
 
     static const char  *root_endpoints[] = { "1" };
     static const char  *api_endpoints[] = { "control", "nginx" };
-    static const char  *control_endpoints[] = { "processes", "config" };
+    static const char  *control_endpoints[] = { "processes", "config",
+                                                "dynamic" };
 
     p = r->path.data;
     len = r->path.len;
@@ -649,7 +676,7 @@ ngx_control_content(ngx_control_request_t *r)
                 return ngx_control_send_response(r, NGX_CTRL_NOT_ALLOWED, NULL);
             }
 
-            return ngx_control_api_endpoints(r, control_endpoints, 2);
+            return ngx_control_api_endpoints(r, control_endpoints, 3);
         }
 
         break;
@@ -676,6 +703,21 @@ ngx_control_content(ngx_control_request_t *r)
             }
 
             return ngx_control_show_processes(r);
+        }
+
+        break;
+
+    case 18:
+        if (ngx_strncmp(p, "/1/control/dynamic", len) == 0) {
+            if (r->method == NGX_CTRL_GET) {
+                return ngx_control_dynamic_status(r);
+            }
+
+            if (r->method == NGX_CTRL_PATCH) {
+                return ngx_control_dynamic_reload(r);
+            }
+
+            return ngx_control_send_response(r, NGX_CTRL_NOT_ALLOWED, NULL);
         }
 
         break;
@@ -1001,6 +1043,37 @@ ngx_control_reload_config(ngx_control_request_t *r)
     }
 
     return ngx_control_send_json(r, status, obj);
+}
+
+
+static ngx_int_t
+ngx_control_dynamic_status(ngx_control_request_t *r)
+{
+    ngx_dyn_status_t  st;
+    ngx_data_item_t  *obj;
+
+    st.generation = ngx_dyn_master_generation;
+    st.digest = ngx_dyn_master_digest;
+    st.pending = ngx_dyn_master_pending;
+
+    obj = ngx_data_obj_handler((uintptr_t) ngx_control_dyn_fields, r->pool,
+                               &st);
+    if (obj == NULL) {
+        return NGX_ERROR;
+    }
+
+    return ngx_control_send_json(r, NGX_CTRL_OK, obj);
+}
+
+
+static ngx_int_t
+ngx_control_dynamic_reload(ngx_control_request_t *r)
+{
+    if (ngx_dyn_master_poll(ngx_cycle, 1) != NGX_OK) {
+        return ngx_control_send_response(r, NGX_CTRL_UNPROCESSABLE, NULL);
+    }
+
+    return ngx_control_send_response(r, NGX_CTRL_OK, NULL);
 }
 
 

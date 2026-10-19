@@ -947,7 +947,16 @@ ngx_conf_open_file(ngx_cycle_t *cycle, ngx_str_t *name)
 
     if (name->len) {
         file->fd = NGX_INVALID_FILE;
-        file->name = full;
+
+        file->name.len = full.len;
+        file->name.data = ngx_pnalloc(cycle->pool, full.len + 1);
+
+        if (file->name.data == NULL) {
+            return NULL;
+        }
+
+        ngx_memcpy(file->name.data, full.data, full.len);
+        file->name.data[full.len] = '\0';
 
     } else {
         file->fd = ngx_stderr;

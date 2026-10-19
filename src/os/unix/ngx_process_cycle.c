@@ -1090,6 +1090,12 @@ ngx_channel_handler(ngx_event_t *ev)
             ngx_reopen = 1;
             break;
 
+        case NGX_CMD_DYN_CONF:
+#if (NGX_HTTP)
+            ngx_dyn_worker_apply(ch.arg);
+#endif
+            break;
+
         case NGX_CMD_OPEN_CHANNEL:
 
             ngx_log_debug3(NGX_LOG_DEBUG_CORE, ev->log, 0,

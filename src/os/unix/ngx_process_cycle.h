@@ -18,6 +18,7 @@
 #define NGX_CMD_QUIT           3
 #define NGX_CMD_TERMINATE      4
 #define NGX_CMD_REOPEN         5
+#define NGX_CMD_DYN_CONF       6
 
 
 #define NGX_PROCESS_SINGLE     0

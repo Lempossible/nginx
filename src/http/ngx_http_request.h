@@ -322,6 +322,8 @@ typedef struct {
     ngx_http_addr_conf_t             *addr_conf;
     ngx_http_conf_ctx_t              *conf_ctx;
 
+    ngx_dyn_gen_t                    *gen;
+
 #if (NGX_HTTP_SSL || NGX_COMPAT)
     ngx_str_t                        *ssl_servername;
 #if (NGX_PCRE)

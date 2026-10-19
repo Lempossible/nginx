@@ -74,6 +74,8 @@ fi
 
 
 if [ $HTTP = YES ]; then
+    have=NGX_HTTP . auto/have
+
     HTTP_MODULES=
     HTTP_DEPS=
     HTTP_INCS=
@@ -96,6 +98,7 @@ if [ $HTTP = YES ]; then
                          src/http/ngx_http_upstream.h \
                          src/http/ngx_http_upstream_round_robin.h"
         ngx_module_srcs="src/http/ngx_http.c \
+                         src/http/ngx_http_dyn.c \
                          src/http/ngx_http_core_module.c \
                          src/http/ngx_http_special_response.c \
                          src/http/ngx_http_request.c \
@@ -1028,6 +1031,8 @@ if [ $HTTP = YES ]; then
 
         . auto/module
     fi
+
+
 fi
 
 

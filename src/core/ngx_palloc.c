@@ -227,6 +227,7 @@ ngx_palloc_large(ngx_pool_t *pool, size_t size)
     for (large = pool->large; large; large = large->next) {
         if (large->alloc == NULL) {
             large->alloc = p;
+            large->size = size;
             return p;
         }
 
@@ -242,6 +243,7 @@ ngx_palloc_large(ngx_pool_t *pool, size_t size)
     }
 
     large->alloc = p;
+    large->size = size;
     large->next = pool->large;
     pool->large = large;
 
@@ -267,6 +269,7 @@ ngx_pmemalign(ngx_pool_t *pool, size_t size, size_t alignment)
     }
 
     large->alloc = p;
+    large->size = size;
     large->next = pool->large;
     pool->large = large;
 
