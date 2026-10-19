@@ -211,6 +211,15 @@ ngx_dyn_diff_check(ngx_cycle_t *live, ngx_cycle_t *cand, ngx_str_t *err)
     }
 #endif
 
+    if (live->dyn_ctx_cmds != cand->dyn_ctx_cmds
+        || ngx_memcmp(live->dyn_ctx_hash, cand->dyn_ctx_hash,
+                      sizeof(live->dyn_ctx_hash))
+           != 0)
+    {
+        ngx_str_set(err, "directive outside server/location changed");
+        return NGX_ERROR;
+    }
+
     return NGX_OK;
 }
 

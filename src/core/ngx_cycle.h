@@ -88,6 +88,8 @@ struct ngx_cycle_s {
     ngx_str_t                 hostname;
 
     ngx_dyn_gen_t            *dyn_gen;
+    ngx_uint_t                dyn_ctx_hash[2];
+    ngx_uint_t                dyn_ctx_cmds;
 };
 
 

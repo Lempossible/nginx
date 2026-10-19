@@ -139,6 +139,49 @@ assert_eq "$(grep -c 'dyn_conf: rejected: worker_processes' "$LOG" 2>/dev/null)"
 assert_eq "$(curl -sI "http://127.0.0.1:$PORT/" | grep -c 'X-V: 2')" "1" \
     "worker_processes rejection left old config serving"
 
+write_conf <<'EOF'
+worker_processes 1;
+error_log logs/error.log notice;
+pid logs/nginx.pid;
+events { worker_connections 64; }
+http {
+    access_log off;
+    limit_req_zone $binary_remote_addr zone=rl:1m rate=10r/s;
+    client_max_body_size 2m;
+    server {
+        listen 18080;
+        location / { root html; add_header X-V 9; }
+    }
+}
+EOF
+ctl_patch /1/control/dynamic > /dev/null
+sleep 0.5
+assert_eq "$(grep -c 'dyn_conf: rejected: directive outside server/location' "$LOG" 2>/dev/null)" "1" \
+    "http-level directive change rejected"
+assert_eq "$(curl -sI "http://127.0.0.1:$PORT/" | grep -c 'X-V: 2')" "1" \
+    "http-level rejection left old config serving"
+
+write_conf <<'EOF'
+worker_processes 1;
+error_log logs/error2.log notice;
+pid logs/nginx.pid;
+events { worker_connections 64; }
+http {
+    access_log off;
+    limit_req_zone $binary_remote_addr zone=rl:1m rate=10r/s;
+    server {
+        listen 18080;
+        location / { root html; add_header X-V 10; }
+    }
+}
+EOF
+ctl_patch /1/control/dynamic > /dev/null
+sleep 0.5
+assert_eq "$(grep -c 'dyn_conf: rejected: directive outside server/location' "$LOG" 2>/dev/null)" "2" \
+    "main error_log change rejected"
+assert_eq "$(curl -sI "http://127.0.0.1:$PORT/" | grep -c 'X-V: 2')" "1" \
+    "main error_log rejection left old config serving"
+
 stop_nginx
 make_prefix
 

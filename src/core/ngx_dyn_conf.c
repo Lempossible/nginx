@@ -1,8 +1,97 @@
 #include <ngx_config.h>
 #include <ngx_core.h>
 
+#if (NGX_HTTP)
+#include <ngx_http.h>
+#endif
+
 ngx_uint_t   ngx_dyn_build_mode = 0;
 ngx_pool_t  *ngx_dyn_build_pool = NULL;
+
+
+#define NGX_DYN_HASH_PRIME  16777619u
+#define NGX_DYN_HASH_SEED1  2166136261u
+#define NGX_DYN_HASH_SEED2  2654435769u
+
+
+static void
+ngx_dyn_hash_bytes(ngx_uint_t h[2], u_char *p, size_t n)
+{
+    while (n--) {
+        h[0] = ((h[0] ^ *p) * NGX_DYN_HASH_PRIME) & 0xffffffff;
+        h[1] = ((h[1] ^ *p) * NGX_DYN_HASH_PRIME) & 0xffffffff;
+        p++;
+    }
+}
+
+
+static void
+ngx_dyn_hash_field(ngx_uint_t h[2], ngx_str_t *s)
+{
+    u_char  len[4];
+
+    len[0] = (u_char) (s->len >> 24);
+    len[1] = (u_char) (s->len >> 16);
+    len[2] = (u_char) (s->len >> 8);
+    len[3] = (u_char) s->len;
+
+    ngx_dyn_hash_bytes(h, len, sizeof(len));
+    ngx_dyn_hash_bytes(h, s->data, s->len);
+}
+
+
+static ngx_uint_t
+ngx_dyn_static_scope(ngx_conf_t *cf)
+{
+    if (cf->cmd_type == NGX_MAIN_CONF) {
+        return 1;
+    }
+
+#if (NGX_HTTP)
+    if (cf->cmd_type == NGX_HTTP_MAIN_CONF) {
+        return 2;
+    }
+#endif
+
+    return 0;
+}
+
+
+void
+ngx_dyn_conf_record(ngx_conf_t *cf, ngx_command_t *cmd)
+{
+    ngx_uint_t    i, scope;
+    ngx_str_t    *args;
+    ngx_cycle_t  *cycle;
+
+    scope = ngx_dyn_static_scope(cf);
+
+    if (scope == 0) {
+        return;
+    }
+
+    if (scope == 2 && ngx_strcmp(cmd->name.data, "server") == 0) {
+        return;
+    }
+
+    cycle = cf->cycle;
+
+    if (cycle->dyn_ctx_cmds == 0) {
+        cycle->dyn_ctx_hash[0] = NGX_DYN_HASH_SEED1;
+        cycle->dyn_ctx_hash[1] = NGX_DYN_HASH_SEED2;
+    }
+
+    ngx_dyn_hash_field(cycle->dyn_ctx_hash, &cmd->name);
+
+    args = cf->args->elts;
+
+    for (i = 0; i < cf->args->nelts; i++) {
+        ngx_dyn_hash_field(cycle->dyn_ctx_hash, &args[i]);
+    }
+
+    cycle->dyn_ctx_cmds++;
+}
+
 
 void
 ngx_dyn_pool_stats(ngx_pool_t *pool, ngx_dyn_pool_stats_t *st)

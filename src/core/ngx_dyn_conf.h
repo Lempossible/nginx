@@ -13,6 +13,8 @@ typedef struct {
 
 void ngx_dyn_pool_stats(ngx_pool_t *pool, ngx_dyn_pool_stats_t *st);
 
+void ngx_dyn_conf_record(ngx_conf_t *cf, ngx_command_t *cmd);
+
 ngx_pool_t *ngx_dyn_gp_create(ngx_log_t *log, size_t size);
 void ngx_dyn_gp_destroy(ngx_pool_t *gp, ngx_uint_t id);
 

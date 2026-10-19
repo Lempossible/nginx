@@ -466,6 +466,7 @@ ngx_conf_handler(ngx_conf_t *cf, ngx_int_t last)
             rv = cmd->set(cf, cmd, conf);
 
             if (rv == NGX_CONF_OK) {
+                ngx_dyn_conf_record(cf, cmd);
                 return NGX_OK;
             }
 

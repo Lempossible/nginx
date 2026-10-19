@@ -14,10 +14,10 @@ pid logs/nginx.pid;
 events { worker_connections 64; }
 http {
     access_log off;
-    client_max_body_size ${n}m;
     server {
         listen 18080;
         keepalive_timeout 2s;
+        client_max_body_size ${n}m;
         location / { root html; add_header X-N $n; }
     }
 }
